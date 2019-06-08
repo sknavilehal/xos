@@ -1,0 +1,97 @@
+alias physicalSP S0;
+alias sysCallNo S1;
+alias swoft_index S2;
+alias ppoft_index S3;
+alias PID S4;
+alias PCB S5;
+alias fileCount S6;
+
+PID = (PTBR - PAGE_TABLE)/8;
+PCB = READY_LIST + 32*PID;
+physicalSP = [PTBR + 6]*512 + SP%512;
+sysCallNo = [physicalSP - 1];
+
+S7 = [physicalSP - 3];
+
+if(sysCallNo == 2) then
+	alias fat_index S8;
+	alias fileName S7;
+
+	breakpoint;
+	fat_index = 0;
+	while([FAT + fat_index*8] != fileName) do
+		if(fat_index == 64) then
+			[physicalSP - 2] = -1;
+			print("fail:2021");
+			ireturn;
+		endif;
+		fat_index = fat_index + 1;
+	endwhile;
+
+	swoft_index=0;
+	while([FILE_TABLE + swoft_index*2] != fat_index && swoft_index < 64) do
+		swoft_index = swoft_index + 1;
+	endwhile;
+	if(swoft_index == 64) then
+		swoft_index=0;
+		while([FILE_TABLE + swoft_index*2] != -1) do
+			if(swoft_index == 64) then
+				[physicalSP - 2] = -1;
+				print("fail:2022");
+				ireturn;
+			endif;
+			swoft_index = swoft_index + 1;
+		endwhile;
+	endif;
+
+	ppoft_index=0;
+	while([PCB + 15 + ppoft_index*2] != -1) do
+		if(ppoft_index == 8) then
+			[physicalSP - 2] = -1;
+			print("fail:2023");
+			ireturn;
+		endif;
+		ppoft_index = ppoft_index + 1;
+	endwhile;
+
+	[PCB + 15 + ppoft_index*2] = swoft_index;
+	[PCB + 15 + ppoft_index*2 + 1] = 0;
+
+	fileCount = [FILE_TABLE + swoft_index*2 + 1];
+	fileCount = fileCount + 1;
+	[FILE_TABLE + swoft_index*2] = fat_index;
+	[FILE_TABLE + swoft_index*2 + 1] = fileCount;
+
+	[physicalSP - 2] = 0;
+endif;
+
+if(sysCallNo == 3) then
+	alias fileDesc S7;
+
+	if(fileDesc > 7 || fileDesc < 0) then
+		[physicalSP - 2] = -1;
+		print("fail:2031");
+		ireturn;
+	endif;
+
+	swoft_index = [PCB + 15 + fileDesc*2];
+	if(swoft_index == -1) then
+		print("fail:2032");
+		[physicalSP - 2] = -1;
+		ireturn;
+	endif;
+
+	fileCount = [FILE_TABLE + swoft_index*2 + 1];
+	fileCount = fileCount - 1;
+	[FILE_TABLE + swoft_index*2 + 1] = fileCount;
+	if(fileCount == 0) then
+		[FILE_TABLE + swoft_index*2] = -1;
+	endif;
+
+	[PCB + 15 + fileDesc*2] = -1;
+	[PCB + 15 + fileDesc*2 + 1] = -1;
+
+	[physicalSP - 2] = 0;
+endif;
+
+ireturn;

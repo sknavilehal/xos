@@ -1,0 +1,171 @@
+alias physicalSP S0;
+alias newPID S1;
+alias newPCB S2;
+alias currentPID S3;
+alias currentPCB S4;
+alias sysCallNo S5;
+alias counter S6;
+alias page S7;
+alias aux S8;
+alias swoft_index S9;
+alias fileCount S10;
+alias waitingPID S11;
+
+currentPID = (PTBR - PAGE_TABLE)/8;
+currentPCB = READY_LIST + 32*currentPID;
+physicalSP = ([PTBR + 6]*512) + SP%512;
+
+newPID = (newPID + 1)%32;
+newPCB = READY_LIST + 32*newPID;
+
+sysCallNo = [physicalSP - 1];
+
+if(sysCallNo == 10) then
+	
+	waitingPID = 100 + currentPID;
+	counter = 0;
+	while(counter < 32) do
+		if([READY_LIST + counter*32 + 1] == waitingPID) then
+			[READY_LIST + counter*32 + 1] = 1;
+		endif;
+		counter = counter + 1;
+	endwhile;
+
+	breakpoint;
+	
+	[currentPCB + 1] = 1;
+	while([newPCB + 1] != 1) do
+		newPID = (newPID + 1)%32;
+		newPCB = READY_LIST + 32*newPID;
+	endwhile;
+
+	if(newPID == currentPID) then
+		halt;
+	endif;
+	[currentPCB + 1] = 0;
+
+
+	counter = 0;
+	while(counter < 8) do
+		swoft_index = [currentPCB + 15 + counter*2];
+		if(swoft_index != -1) then
+			fileCount = [FILE_TABLE + swoft_index*2 + 1];
+			fileCount = fileCount - 1;
+			if(fileCount == 0) then
+				[FILE_TABLE + swoft_index*2] = -1;
+			endif;
+			
+			[currentPCB + 15 + counter*2] = -1;
+			[currentPCB + 15 + counter*2 + 1] = -1;
+		endif;
+		
+		counter = counter + 1;
+	endwhile;
+
+	counter=0;
+	while(counter < PTLR) do
+		page = [PTBR + counter*2];
+		aux = [PTBR + counter*2 + 1];
+
+		if(aux%10 == 1) then
+			[MEM_LIST + page] = [MEM_LIST + page] - 1;
+		endif;
+		if(page > 447) then
+			[DISK_LIST + page] = [DISK_LIST + page] - 1;
+		endif;
+
+		[PTBR + counter*2] = -1;
+		[PTBR + counter*2 + 1] = "00";
+
+		counter = counter + 1;
+	endwhile;
+
+	[newPCB + 1] = 2;
+	SP = [newPCB + 2];
+	BP = [newPCB + 3];
+	PTBR = [newPCB + 5];
+	PTLR = [newPCB + 6];
+	R0 = [newPCB + 7];
+	R1 = [newPCB + 8];
+	R2 = [newPCB + 9];
+	R3 = [newPCB + 10];
+	R4 = [newPCB + 11];
+	R5 = [newPCB + 12];
+	R6 = [newPCB + 13];
+	R7 = [newPCB + 14];
+
+	SP = SP + 1;
+	physicalSP = [PTBR + 6]*512 + SP%512;
+	[physicalSP] = [newPCB + 4];
+
+endif;
+
+if(sysCallNo == 13) then
+	waitingPID = [physicalSP - 3];
+	
+	counter = READY_LIST + waitingPID*32;
+	if([counter + 1] == 0 || [counter + 1] == 2) then
+		[physicalSP - 2] = -1;
+		ireturn; 
+	endif;
+
+	waitingPID = 100 + waitingPID;
+	while([newPCB + 1] != 1) do
+		newPID = (newPID + 1)%32;
+		newPCB = READY_LIST + 32*newPID;
+	endwhile;
+
+	[currentPCB + 1] = waitingPID;
+	[currentPCB + 2] = SP - 1;
+	[currentPCB + 3] = BP;
+	[currentPCB + 4] = [physicalSP];
+	[currentPCB + 5] = PTBR;
+	[currentPCB + 6] = PTLR;
+	[currentPCB + 7] = R0;
+	[currentPCB + 8] = R1;
+	[currentPCB + 9] = R2;
+	[currentPCB + 10] = R3;
+	[currentPCB + 11] = R4;
+	[currentPCB + 12] = R5;
+	[currentPCB + 13] = R6;
+	[currentPCB + 14] = R7;
+
+	[newPCB + 1] = 2;
+	SP = [newPCB + 2];
+	BP = [newPCB + 3];
+	PTBR = [newPCB + 5];
+	PTLR = [newPCB + 6];
+	R0 = [newPCB + 7];
+	R1 = [newPCB + 8];
+	R2 = [newPCB + 9];
+	R3 = [newPCB + 10];
+	R4 = [newPCB + 11];
+	R5 = [newPCB + 12];
+	R6 = [newPCB + 13];
+	R7 = [newPCB + 14];
+
+	[physicalSP - 2] = 0;
+
+	SP = SP + 1;
+	physicalSP = [PTBR + 6]*512 + SP%512;
+	[physicalSP] = [newPCB + 4];
+
+endif;
+
+if(sysCallNo == 14) then
+
+	waitingPID = 100 + currentPID;
+	counter = 0;
+	while(counter < 32) do
+		if([READY_LIST + counter*32 + 1] == waitingPID) then
+			[READY_LIST + counter*32 + 1] = 1;
+		endif;
+		counter = counter + 1;
+	endwhile;
+	
+	[physicalSP - 2] = 0;
+endif;
+
+breakpoint;
+
+ireturn;

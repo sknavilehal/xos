@@ -1,0 +1,84 @@
+alias cause S0;
+alias vpgnum S1;
+alias ipaddr S2;
+alias page S3;
+alias i S4;
+alias j S5;
+alias phypage S6;
+alias physicalsp S7;
+
+cause = EFR % 10;
+vpgnum = (EFR/10) % 100;
+ipaddr = EFR / 1000;
+
+phypage = [PTBR + vpgnum * 2];
+
+if(cause != 0 || phypage == -1) then
+	if(cause == 1) then
+		print "ILLEGAL INSTRUCTION";
+	endif;
+	if(cause == 2) then
+		print "ILLEGAL MEMORY ACCESS";
+	endif;
+	if(cause == 3) then
+		print "DIVIDED BY 0";
+	endif;
+	if(cause == 4) then
+		print ipaddr;
+		print "ILLEGAL OPERANDS";
+	endif;
+	inline "JMP 11776";
+endif;
+
+i=20;
+while((i < 64) && ([MEM_LIST + i] !=0)) do 
+	i = i + 1;
+endwhile;
+if(i<64) then
+	page = i;
+endif;
+breakpoint;
+if(i==64) then
+// page replacment algo
+	i = (PAGE_TABLE - PTBR) + 2;
+	
+	while(1) do
+		if(i%8 != 6) then
+			if([PAGE_TABLE + i + 1] == "11") then
+				[PAGE_TABLE + i + 1] = "01";
+			endif;
+			if([PAGE_TABLE + i + 1] == "01" && [MEM_LIST + [PAGE_TABLE + i]] == 1) then
+				j = PAGE_TABLE + i;
+				page = [j];
+				break;
+			endif;
+		endif;
+		i = (i + 2)%256;
+	endwhile;
+	i = 448;
+	while((i < 512) && [DISK_LIST + i] != 0) do
+		i = i + 1;
+	endwhile;
+	if(i == 512) then
+		inline "JMP 11776";
+	endif;
+	store(page,i);
+	[DISK_LIST + i] = 1;
+	[j] = i;
+	[j + 1] = "00";
+endif;
+
+[MEM_LIST + page] = 1;
+
+load(page,phypage);
+
+if(phypage > 448 && phypage < 512) then
+	[DISK_LIST + phypage] = [DISK_LIST + phypage] - 1;
+endif;
+[PTBR + vpgnum * 2] = page;
+[PTBR + vpgnum * 2 + 1] = "11";
+
+SP = SP + 1;
+[[PTBR + (SP / 512) * 2] * 512 + (SP % 512)] = ipaddr;
+
+ireturn;

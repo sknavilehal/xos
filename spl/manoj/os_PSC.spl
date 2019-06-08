@@ -1,0 +1,55 @@
+alias i S1;
+alias j S2;
+//fat
+load(5,19);
+load(6,20);
+
+PTBR = PAGE_TABLE;
+PTLR = 4;
+[PTBR + 0] = 21;
+[PTBR + 1] = "00";
+[PTBR + 2] = -1;
+[PTBR + 3] = "00";
+[PTBR + 4] = -1;
+[PTBR + 5] = "00";
+[PTBR + 6] = 25;
+[PTBR + 7] = "01";
+SP =  3 * 512;
+[25 * 512] = 0;
+//load exhandler,timer_interrupt,interrupt routine
+j=1;
+while(j<19) do
+	load(j+6,j);
+	j=j+1;
+endwhile;
+//allocating memory free list
+i=0;
+while(i<25) do
+	[MEM_LIST + i] = 1;
+	i = i + 1;
+endwhile;
+while(i<64) do
+	[MEM_LIST + i] = 0;
+	i = i + 1;
+endwhile;
+//stack 
+[MEM_LIST + 25] = 1;
+//allocating pcb
+i=1;
+[READY_LIST + 1] = 2;
+[READY_LIST] = 0;
+while(i<32) do
+	[READY_LIST + i * 32 + 1] = 0;
+	[READY_LIST + i * 32] = i;
+	i = i + 1;
+endwhile;
+//clear the swap area
+i=448;
+while(i<512) do
+	[DISK_LIST + i] = 0;
+	i = i + 1;
+endwhile;
+//store DFL
+store(6,20);
+
+ireturn;

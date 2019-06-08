@@ -1,0 +1,92 @@
+alias physicalSP S0;
+physicalSP = ([PTBR + 2*(SP/512)]*512) + SP%512;
+
+alias sysCallNo S1;
+sysCallNo = [physicalSP - 1];
+
+alias newLseek S2;
+newLseek = [physicalSP - 3];
+
+alias fileDesc S3;
+fileDesc = [physicalSP - 4];
+
+alias PID S8;
+alias PCB S9;
+
+PID = (PTBR - 1024)/8;
+PCB = READY_LIST + PID*32;
+
+if(sysCallNo == 6) then
+    alias sw_index S4;
+    alias fat_index S5;
+    alias file_size S6;
+    alias seek S7;
+
+    if(fileDesc > 7 || fileDesc < 0) then
+	[physicalSP - 2] = -1;
+	ireturn;
+    endif;
+
+    sw_index = [PCB + 15 + fileDesc*2];
+    if(sw_index == -1) then
+	[physicalSP - 2] = -1;
+	ireturn;
+    endif;
+
+    fat_index = [FILE_TABLE + sw_index*2];
+    file_size = [FAT + fat_index*8 + 1];
+
+    if(newLseek >= file_size) then
+	[physicalSP - 2] = -1;
+	ireturn;
+    endif;
+
+    [PCB + 15 + fileDesc*2 + 1] = newLseek;
+    [physicalSP - 2] = 0;
+
+endif;
+
+if(sysCallNo == 7) then
+    alias sw_index S4;
+    alias fat_index S5;
+    alias file_size S6;
+    alias LSEEK S7;
+    alias bb S8;
+    alias db S9;
+    alias offset S10;
+
+    if(fileDesc > 7 || fileDesc < 0) then
+	[physicalSP - 2] = -1;
+	ireturn;
+    endif;
+
+    sw_index = [PCB + 15 + fileDesc*2];
+    if(sw_index == -1) then
+	[physicalSP - 2] = -1;
+	ireturn;
+    endif;
+
+    LSEEK = [PCB + 15 + fileDesc*2 + 1];
+    fat_index = [FILE_TABLE + sw_index*2];
+
+    file_size = [FAT + fat_index*8 + 1];
+    bb = [FAT + fat_index*8 + 2];
+
+    if(LSEEK >= file_size) then
+	[physicalSP - 2] = -1;
+	ireturn;
+    endif;
+
+    load(1,bb);
+    db = [SCRATCHPAD + LSEEK/512];
+    load(1,db);
+    offset = LSEEK%512;
+
+    [physicalSP - 3] = [SCRATCHPAD + offset];
+	LSEEK = LSEEK + 1;
+	[PCB + 15 + fileDesc*2 + 1] = LSEEK;
+
+    [physicalSP - 2] = 0;
+endif;
+
+ireturn;

@@ -1,0 +1,76 @@
+alias counter S0;
+alias ppoft_index S1;
+alias PCB S2;
+
+counter=1;
+while(counter < 19) do
+	load(counter+6,counter);
+	counter = counter + 1;
+endwhile;
+
+load(5,19);
+load(6,20);
+
+PTBR=PAGE_TABLE;
+PTLR=4;
+
+[PTBR + 0] = 21;
+[PTBR + 1] = "00";
+[PTBR + 2] = -1;
+[PTBR + 3] = "00";
+[PTBR + 4] = -1;
+[PTBR + 5] = "00";
+[PTBR + 6] = 25;
+[PTBR + 7] = "01";
+
+load(25,21);
+SP = 3*512;
+[25*512] = 0;
+
+counter=0;
+while(counter < 32) do
+	[READY_LIST + counter*32] = counter;
+	[READY_LIST + counter*32 + 1] = 0;
+	counter = counter + 1;
+endwhile;
+[READY_LIST + 1] = 2;
+[READY_LIST + 31] = 0;
+
+counter=0;
+while(counter < 128) do
+	[FILE_TABLE + counter] = -1;
+	[FILE_TABLE + counter + 1] = 0;
+	counter = counter + 2;
+endwhile;
+
+counter=0;
+while(counter < 32) do
+	PCB = READY_LIST + counter*32;
+	ppoft_index=0;
+	while(ppoft_index < 8) do
+		[PCB + 15 + ppoft_index*2] = -1;
+		[PCB + 15 + ppoft_index*2 + 1] = -1;
+		ppoft_index = ppoft_index + 1;
+	endwhile;
+	counter = counter + 1;
+endwhile;
+
+counter=0;
+while(counter < 27) do
+	[MEM_LIST + counter] = 1;
+	counter = counter + 1;
+endwhile;
+
+while(counter < 64) do
+	[MEM_LIST + counter] = 0;
+	counter = counter + 1;
+endwhile;
+
+counter=448;
+while(counter < 511) do
+	[DISK_LIST + counter] = 0;
+	counter = counter + 1;
+endwhile;
+[DISK_LIST + 511] = 1;
+
+ireturn;

@@ -1,0 +1,104 @@
+alias cause S0;
+alias Vpagenum S1;
+alias ip_addr S2;
+alias physicalSP S3;
+alias page S4;
+alias df S5;
+alias counter S6;
+alias block S7;
+alias aux S8;
+
+physicalSP = [PTBR + 6]*512 + SP%512;
+
+cause = EFR%10;
+Vpagenum = (EFR/10)%100;
+ip_addr = (EFR/1000);
+
+if(cause != 0) then
+	if(cause == 1) then
+		print("ILL INSTR");
+	endif;
+	if(cause == 2) then
+		print("ILL MEM ACC");
+	endif;
+	if(cause == 3) then
+		print("ARITH EXCEP");
+	endif;
+	if(cause == 4) then
+		print("ILL OPERANDS");
+	endif;
+
+	SP = SP + 3;
+	physicalSP = [PTBR + 6]*512 + SP%512;
+	[physicalSP - 1] = 10;
+	inline "JMP 11776"; 
+endif;
+
+block = [PTBR + Vpagenum*2];
+if([PTBR + Vpagenum*2] == -1) then
+	SP = SP + 3;
+	physicalSP = [PTBR + 6]*512 + SP%512;
+	[physicalSP - 1] = 10;
+	inline "JMP 11776"; 
+endif;
+
+page=26;
+while([MEM_LIST + page] != 0 && page < 64) do
+	page = page + 1;
+endwhile;
+
+if(page == 64) then
+	counter = PTBR + Vpagenum*2 + 2;
+	while(1) do
+		aux = [counter + 1];
+		page = [counter];
+		if(counter%8 != 6 && [counter] != -1) then
+			if(aux == "11") then
+				[counter + 1] = "01";
+			endif;
+			if(aux == "01" && [MEM_LIST + page] == 1) then
+				df=448;
+				while([DISK_LIST + df] != 0) do
+					if(df == 511) then
+						SP = SP + 3;
+						physicalSP = [PTBR + 6]*512 + SP%512;
+						[physicalSP - 1] = 10;
+						inline "JMP 11776"; 
+					endif;
+					df = df + 1;
+				endwhile;
+				[DISK_LIST + df] = 1;
+
+				store(page,df);
+				[counter] = df;
+				[counter + 1] = "00";
+				
+				break;
+			endif;
+		endif;
+		
+		counter = counter + 2;
+		if(counter == 1280) then
+			counter = PAGE_TABLE;
+		endif;
+	endwhile;
+endif;
+
+[MEM_LIST + page] = 1;
+
+load(page,block);
+
+[PTBR + Vpagenum*2] = page;
+[PTBR + Vpagenum*2 + 1] = "11";
+
+if(block > 447) then
+	[DISK_LIST + block] = [DISK_LIST + block] - 1;
+endif;
+
+SP = SP + 1;
+physicalSP = [PTBR + 6]*512 + SP%512;
+[physicalSP] = ip_addr;
+
+breakpoint;
+
+ireturn;

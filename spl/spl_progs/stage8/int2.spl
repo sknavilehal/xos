@@ -1,0 +1,93 @@
+alias physicalSP S0;
+physicalSP = ([PTBR + 2*(SP/512)]*512) + SP%512;
+
+alias sysCallNo S1;
+sysCallNo = [physicalSP - 1];
+
+S2 = [physicalSP - 3];
+
+alias fileCount S8;
+alias PID S6;
+alias PCB S7;
+
+PID = (PTBR - 1024)/8;
+PCB = READY_LIST + PID*32;
+
+if(sysCallNo == 2) then
+    alias fileName S2;
+    alias fat_index S3;
+    alias sw_index S4;
+    alias pp_index S5;
+    
+    fat_index=0;
+    while([FAT + fat_index*8] != fileName) do
+	if(fat_index == 64) then
+	    [physicalSP - 2] = -1;
+	    ireturn;
+	endif;
+	fat_index = fat_index + 1;
+    endwhile;    
+    
+    sw_index = 0;
+    while(sw_index < 64 && [FILE_TABLE + sw_index*2] != fat_index) do
+	sw_index = sw_index + 1;
+    endwhile;
+    if(sw_index == 64) then
+		sw_index = 0;
+		while([FILE_TABLE + sw_index*2] != -1) do
+	     	if(sw_index == 64) then
+				[physicalSP - 2] = -1;
+				ireturn;
+	    	endif;
+	    	sw_index = sw_index + 1;
+		endwhile;
+    endif;
+       
+    pp_index = 0;
+    while([PCB + 15 + pp_index*2] != -1) do
+        if(pp_index == 8) then
+	    [physicalSP - 2] = -1;
+	    ireturn;
+	endif;
+	pp_index = pp_index + 1;
+    endwhile;
+
+    [PCB + 15 + pp_index*2] = sw_index;
+    [PCB + 15 + pp_index*2 + 1] = 0;
+    [FILE_TABLE + sw_index*2] = fat_index;
+    fileCount = [FILE_TABLE + sw_index*2 + 1];
+    fileCount = fileCount + 1;
+    [FILE_TABLE + sw_index*2 + 1] = fileCount;
+
+    [physicalSP - 2] = pp_index;
+endif;
+
+if(sysCallNo == 3) then
+    alias fileDesc S2;
+    alias sw_index S3;
+
+    if(fileDesc > 7 || fileDesc < 0) then
+		[physicalSP - 2] = -1;
+		ireturn;
+    endif;
+
+    sw_index = [PCB + 15 + fileDesc*2];
+    if(sw_index == -1) then
+		[physicalSP - 2] = -1;
+		ireturn;
+    endif;
+
+    fileCount = [FILE_TABLE + sw_index*2 + 1];
+    fileCount = fileCount - 1;
+    [FILE_TABLE + sw_index*2 + 1] = fileCount;
+    if(fileCount == 0) then
+		[FILE_TABLE + sw_index*2] = -1;
+    endif;
+
+    [PCB + 15 + fileDesc*2] = -1;
+    [PCB + 15 + fileDesc*2 + 1] = -1;
+    
+    [physicalSP - 2] = 0;
+endif;
+
+ireturn;

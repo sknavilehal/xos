@@ -1,0 +1,73 @@
+alias i S0;
+alias j S1;
+alias physicalsp S2;
+alias return S3;
+alias args S4;
+alias k S5;
+alias temp S6;
+alias count S7;
+alias ppoft S8;
+alias swoft S9;
+alias currentPCB S10;
+
+currentPCB = READY_LIST + 32 *( (PTBR - 1024) / 8);
+physicalsp = [PTBR + (SP/512) * 2] * 512 + SP % 512;
+return = physicalsp - 2;
+args = [physicalsp - 3];
+
+i=0;
+while(i < 64) do
+	if([FAT + i * 8] == args) then
+		break;
+	endif;
+	i = i + 1;
+endwhile;
+
+if(i == 64) then
+	[return] = -1;
+	ireturn;
+endif;
+
+load(1,[FAT + i * 8 + 2]);
+//step 3
+
+i=0;
+j=0;
+k=0;
+
+temp = 0;
+while( temp < 3 ) do 
+	i = PTBR + temp * 2;
+
+	if([i + 1]%10 == 1) then
+		[MEM_LIST + [i]] = [MEM_LIST + [i]] - 1;
+	endif;
+	if([i] > 447) then
+		[DISK_LIST + [i]] = [DISK_LIST + [i]] - 1;
+	endif;
+	[i] = [SCRATCHPAD + temp];
+	[i+1] = "00";
+
+	temp = temp + 1;
+endwhile;
+
+//close all the instances of file;
+//i=15;
+//while(i<31) do
+//	ppoft = currentPCB + i;
+//	swoft = [ppoft];
+//	j = swoft + 1;
+//	[j] = [j] - 1;
+//	if([j] == 0) then
+//		[swoft] = -1;
+//	endif;
+//	[ppoft] = -1;
+//	[ppoft + 1] = -1;
+//
+//	i = i + 2;
+//endwhile;
+
+SP = 3 * 512;
+[[PTBR + 6] * 512] = 0;
+
+ireturn;

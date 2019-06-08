@@ -1,0 +1,121 @@
+alias physicalSP S0;
+alias childPID S1;
+alias childPCB S2;
+alias parentPID S3;
+alias parentPCB S4;
+alias sysCallNo S5;
+alias counter S6;
+alias page S7;
+alias aux S8;
+alias swoft_index S9;
+alias fileCount S10;
+alias childPTBR S11;
+alias childphysicalSP S12;
+alias mem_index S13;
+
+parentPID = (PTBR - PAGE_TABLE)/8;
+parentPCB = READY_LIST + 32*parentPID;
+physicalSP = ([PTBR + 6]*512) + SP%512;
+
+sysCallNo = [physicalSP - 1];
+
+if(sysCallNo == 8) then
+
+	childPID=0;
+	while([READY_LIST + childPID*32 + 1] != 0) do
+		if(childPID == 32) then
+			[physicalSP - 2] = -1;
+			ireturn;
+		endif;
+		childPID = childPID + 1;
+	endwhile;
+	
+	childPCB = READY_LIST + 32*childPID;
+	childPTBR = PAGE_TABLE + 8*childPID;
+
+	page=0;
+	counter=0;
+	while(page < PTLR) do
+		if([PTBR + page*2] != -1) then
+			counter = counter + 1;
+		endif;
+		page = page + 1;
+	endwhile;
+
+	page=25;
+	while(counter > 0) do
+		if([MEM_LIST + page] == 0) then
+			counter = counter - 1;
+		endif;
+		if(page == 64) then
+			[physicalSP - 2] = 0;
+			ireturn;
+		endif;
+
+		page = page + 1;
+	endwhile;
+
+	
+	counter=0;
+	mem_index=25;
+	while(counter < PTLR) do
+		page = [PTBR + counter*2];
+		aux = [PTBR + counter*2 + 1];
+
+		if(page != -1) then
+			while([MEM_LIST + mem_index] != 0) do
+				mem_index = mem_index + 1;
+			endwhile;
+			[MEM_LIST + mem_index] = 1;
+
+			store(page,511);
+			load(mem_index,511);
+		
+			[childPTBR + counter*2] = mem_index;	
+			[childPTBR + counter*2 + 1] = "01";
+		else
+			[childPTBR + counter*2] = -1;	
+			[childPTBR + counter*2 + 1] = "00";	
+		endif;
+
+		counter = counter + 1;
+	endwhile;
+
+
+	counter=0;
+	while(counter < 8) do
+		swoft_index = [parentPCB + 15 + counter*2];
+		if(swoft_index != -1) then	
+			fileCount = [FILE_TABLE + swoft_index*2];
+			[childPCB + 15 + counter*2] = [parentPCB + 15 + counter*2];
+			[childPCB + 15 + counter*2 + 1] = [parentPCB + 15 + counter*2 + 1];
+
+			fileCount = fileCount + 1;
+			[FILE_TABLE + swoft_index*2 + 1] = fileCount;
+		endif;
+		counter = counter + 1;
+	endwhile;
+
+	[childPCB + 1] = 1;
+	[childPCB + 2] = SP - 1;
+	[childPCB + 3] = BP;
+	[childPCB + 4] = [physicalSP];
+	[childPCB + 5] = childPTBR;
+	[childPCB + 6] = PTLR;
+	[childPCB + 7] = R0;
+	[childPCB + 8] = R1;
+	[childPCB + 9] = R2;
+	[childPCB + 10] = R3;
+	[childPCB + 11] = R4;
+	[childPCB + 12] = R5;
+	[childPCB + 13] = R6;
+	[childPCB + 14] = R7;
+
+	childphysicalSP = [childPTBR + 6]*512 + (SP - 1)%512;
+	[childphysicalSP - 1] = -2;
+
+	[physicalSP - 2] = childPID;
+
+endif;
+
+ireturn;

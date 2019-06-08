@@ -1,0 +1,70 @@
+alias physicalSP S0;
+alias fileDesc S1;
+alias wordToWrite S2;
+alias PCB S3;
+alias PID S4;
+alias swoft_index S5;
+alias LSEEK S6;
+alias db S7;
+alias bb S8;
+alias fileSize S9;
+alias fat_index S10;
+
+PID = (PTBR - PAGE_TABLE)/8;
+PCB = READY_LIST + PID*32;
+physicalSP = [PTBR + 6]*512 + SP%512;
+
+wordToWrite = [physicalSP - 3];
+fileDesc = [physicalSP - 4];
+
+if(fileDesc > 7 || fileDesc < 0) then
+	[physicalSP - 2] = -1;
+	ireturn;
+endif;
+
+swoft_index = [PCB + 15 + fileDesc*2];
+LSEEK = [PCB + 15 + fileDesc*2 + 1];
+if(swoft_index == -1) then
+	[physicalSP - 2] = -1;
+	ireturn;
+endif;
+
+fat_index = [FILE_TABLE + swoft_index*2];
+
+fileSize = [FAT + fat_index*8 + 1];
+bb = [FAT + fat_index*8 + 2];
+
+load(1,bb);
+
+db = [SCRATCHPAD + LSEEK/512];
+
+if(db == -1) then
+	db = 24;
+	while([DISK_LIST + db] != 0) do
+		if(db > 447) then
+			[physicalSP - 2] = -1;
+			ireturn;
+		endif;
+		db = db + 1;
+	endwhile;
+	fileSize = fileSize + 512;
+	
+	[SCRATCHPAD + LSEEK/512] = db;
+	[DISK_LIST + db] = 1;
+	[FAT + fat_index*8 + 1] = fileSize;
+	
+	store(1,bb);
+	store(5,19);
+	store(6,20);
+endif;
+
+load(1,db);
+[SCRATCHPAD + LSEEK%512] = wordToWrite;
+store(1,db);
+
+LSEEK = LSEEK + 1;
+[PCB + 15 + fileDesc*2 + 1] = LSEEK;
+
+[physicalSP - 2] = 0;
+
+ireturn;

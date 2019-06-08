@@ -1,0 +1,123 @@
+alias childpcbindex S0;
+alias i S1;
+alias j S2;
+alias return S3;
+alias physicalsp S4;
+alias temp S5;
+alias childptbr S6;
+alias currentpcb S7;
+alias k S8;
+alias page S9;
+alias childphysicalsp S10;
+
+physicalsp = [PTBR + (SP / 512) * 2] * 512 + SP % 512;
+return = physicalsp - 2;
+currentpcb =  READY_LIST + ((PTBR - PAGE_TABLE) / 8) * 32; 
+
+childpcbindex = 0;
+while([READY_LIST + childpcbindex * 32 + 1] != 0) do 
+	if(childpcbindex == 32) then
+		[return] = -1;
+		ireturn;
+	endif;
+	childpcbindex = childpcbindex + 1;
+endwhile;
+
+[READY_LIST + childpcbindex * 32 ] = childpcbindex;
+childptbr = PAGE_TABLE + childpcbindex * 8;
+
+i = 0;
+j = 26;
+
+while(j < 64 && [MEM_LIST + j] != 0) do 
+	j = j+1;
+endwhile;
+
+if(j == 64) then
+//	[return] = -1;
+//	ireturn;
+// page replacment algo
+	i = PTBR - PAGE_TABLE;
+	while(1) do
+		if([PAGE_TABLE + i + 1] == "11") then
+			[PAGE_TABLE + i + 1] = "01";
+		endif;
+		if([PAGE_TABLE + i + 1] == "01" && [MEM_LIST + [PAGE_TABLE + i]] == 1) then
+			if(i % 8 != 6) then
+				j = [PAGE_TABLE + i];
+				break;
+			endif;
+		endif;
+		i = (i + 2)%256;
+	endwhile;
+	k=i;
+	i = 448;
+	while((i < 512) && [DISK_LIST + i] != 0) do
+		i = i + 1;
+	endwhile;
+	if(i == 512) then
+		inline "JMP 11776";
+	endif;
+	store(j,i);
+	[DISK_LIST + i] = 1;
+	[PAGE_TABLE + k] = i;
+	[PAGE_TABLE + k+1] = "00";
+endif;
+
+[MEM_LIST + j] = 1;
+
+temp = 0;
+while(temp < 512) do
+	[j * 512 + temp] = [[PTBR + 6] * 512 + temp];
+	temp = temp + 1;
+endwhile;
+[childptbr + 6] = j;
+[childptbr + 7] = "01";
+
+temp = 0;
+while( temp < 3 ) do 
+	i = PTBR + temp * 2;
+	[childptbr + temp * 2] = [i];
+	[childptbr + temp * 2 + 1] = [i + 1];
+	if([i + 1] % 10 == 1) then
+		[MEM_LIST + [i]] = [MEM_LIST + [i]] + 1;
+	endif;
+	if([i] > 447) then 
+		[DISK_LIST + [i]] = [DISK_LIST + [i]] + 1;
+	endif;
+	temp = temp + 1;
+endwhile;
+
+temp = READY_LIST + childpcbindex * 32;
+
+[temp + 5] = childptbr;
+[temp + 4] = [physicalsp];
+[temp + 3] = SP - 1;
+[temp + 2] = BP;
+[temp + 6] = 4;
+[temp + 7] = R0;
+[temp + 8] = R1;
+[temp + 9] = R2;
+[temp + 10] = R3;
+[temp + 11] = R4;
+[temp + 12] = R5;
+[temp + 13] = R6;
+[temp + 14] = R7;
+[temp + 1] = 1;
+
+//step 9
+i=0;
+
+//temp = temp + 15;
+//while(i < 8) do
+//	[temp + i * 2] = [currentpcb + i * 2];
+//	[temp + i * 2 + 1] = [currentpcb + i * 2 + 1];
+//	j = FILE_TABLE + [temp + i * 2 + 1] * 2 + 1;
+//	[j] = [j] + 1;
+//	i = i + 1;
+//endwhile;
+
+[return] = childpcbindex;
+[([childptbr + ((SP-1) / 512) * 2] * 512 + (SP -1) % 512) - 1] = -2;
+
+ireturn;

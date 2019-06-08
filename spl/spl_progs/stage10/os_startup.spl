@@ -1,0 +1,79 @@
+alias counter S0;
+alias PCB S1;
+
+load(5,19);
+load(6,20);
+
+counter = 1;
+while(counter < 19) do
+    load(counter+6,counter);
+    counter = counter + 1;
+endwhile;
+
+PTBR=PAGE_TABLE;
+PTLR=4;
+
+[PTBR+0]=21;
+[PTBR+1]="00";
+[PTBR+2]=-1;
+[PTBR+3]="00";
+[PTBR+4]=-1;
+[PTBR+5]="00";
+[PTBR+6]=25;
+[PTBR+7]="01";
+
+SP=3*512;
+[25*512] = 0;
+
+// Initialize system wide open file table;
+counter = 0;
+while(counter < 128) do
+    [FILE_TABLE + counter] = -1;
+    [FILE_TABLE + counter + 1] = 0;
+    counter = counter + 2;
+endwhile;
+
+// Initialize per process open file table of init process
+counter = 0;
+PCB = READY_LIST;
+while(PCB < 2560) do
+    while(counter < 16) do
+	[PCB + 15 + counter] = -1;
+	[PCB + 15 + counter + 1] = -1;
+	counter = counter + 2;
+    endwhile;
+
+    PCB = PCB + 32;
+endwhile;
+[READY_LIST + 31] = 0;
+
+// Initialize memory free list
+counter=0;
+while(counter < 26) do
+    [MEM_LIST + counter] = 1;
+    counter = counter + 1;
+endwhile;
+while(counter < 64) do
+    [MEM_LIST + counter] = 0;
+    counter = counter + 1;
+endwhile;
+
+// Set states all PCBs in ready list to 0
+counter=0;
+while(counter < 32) do
+    [READY_LIST + counter*32] = counter;
+    [READY_LIST + counter*32 + 1] = 0;
+    counter = counter + 1;
+endwhile;
+
+counter=448;
+while(counter < 512) do
+    [DISK_LIST + counter] = 0;
+    counter = counter + 1;
+endwhile;
+
+store(6,20);
+
+[READY_LIST+1]=2;
+
+ireturn;

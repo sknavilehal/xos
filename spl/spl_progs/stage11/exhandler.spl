@@ -1,0 +1,91 @@
+alias cause S0;
+alias Vpagenum S1;
+alias ip_addr S2;
+alias mem_index S3;
+alias page S4;
+alias physicalSP S5;
+alias pt_word S6;
+alias PID S7;
+alias aux S8;
+alias df_index S9;
+
+PID = (PTBR - 1024)/8;
+
+cause = EFR%10;
+Vpagenum = (EFR/10)%100;
+ip_addr = (EFR/1000);
+
+if([PTBR + Vpagenum*2] < 0 || cause != 0) then
+    SP = SP + 3;
+    alias physicalSP S0;
+    physicalSP = ([PTBR + 2*(SP/512)]*512) + SP%512;
+
+    [physicalSP] = 0; 
+    [physicalSP - 1] = 10;
+    [physicalSP - 2] = 0;
+
+    inline "JMP 11776";
+endif;
+
+mem_index = 26;
+while([MEM_LIST + mem_index] != 0 && mem_index < 64) do
+    mem_index = mem_index + 1;
+endwhile;
+
+// page replacement algorithm
+if(mem_index == 64) then
+    pt_word = PTBR + Vpagenum*2;
+    while(1) do
+		if(pt_word%8 != 6 && [pt_word] != -1) then
+			aux = [pt_word + 1];
+			mem_index = [pt_word];
+			
+			if(aux == "11") then
+				[pt_word + 1] = "01";
+			endif;
+
+			if(aux == "01" && [MEM_LIST + mem_index] == 1) then
+				df_index = 448;
+				while([DISK_LIST + df_index] != 0) do
+					if(df_index == 512) then
+						print("no free swap");
+						halt;
+					endif;
+					df_index = df_index + 1;
+				endwhile;		
+
+				store(mem_index, df_index);
+				[DISK_LIST + df_index] = 1;
+
+				[pt_word] = df_index;
+				[pt_word + 1] = "00";
+
+				break;
+			endif;	    
+		endif;
+
+		pt_word = pt_word + 2;
+		if(pt_word == 1280) then
+			pt_word = 1024;
+		endif;
+    endwhile;
+endif;
+[MEM_LIST + mem_index] = 1;
+
+page = [PTBR + Vpagenum*2];
+
+if(page > 447) then
+    [DISK_LIST + page] = [DISK_LIST + page] - 1;
+endif;
+
+load(mem_index, page);
+[PTBR + Vpagenum*2] = mem_index;
+[PTBR + Vpagenum*2 + 1] = "11";
+
+SP = SP + 1;
+physicalSP = ([PTBR + 6]*512) + SP%512;
+[physicalSP] = ip_addr;
+
+breakpoint;
+
+ireturn;

@@ -1,0 +1,123 @@
+alias physicalSP S0;
+physicalSP = ([PTBR + 2*(SP/512)]*512) + SP%512;
+
+alias filename S1;
+filename = [physicalSP - 3];
+
+alias sysCallNo S2;
+sysCallNo = [physicalSP - 1];
+
+alias PID S3;
+PID = (PTBR - 1024)/8;
+
+alias PCB S4;
+PCB = READY_LIST + PID*32;
+
+// exec system call
+if(sysCallNo == 9) then
+    alias fat_index S5;
+    alias bb S6;
+    alias db S7;
+    alias page S8;
+    alias counter S9;
+	alias waitingPID S10;
+    alias fileCount S11;
+    alias aux S12;
+	alias newPID S13;
+	alias newPCB S14;
+	alias newPTBR S15;
+
+	newPID = 1;
+	while([READY_LIST + newPID*32 + 1] != 0) do
+		if(newPID == 32) then
+			[physicalSP - 2] = -1;
+			ireturn;
+		endif;
+		newPID = newPID + 1;
+	endwhile;
+	
+	newPCB = READY_LIST + newPID*32;
+	newPTBR = PAGE_TABLE + newPID*8;
+
+	// get basic block of filename to execute
+    fat_index = 0;
+    while([FAT + fat_index*8] != filename) do
+		if(fat_index == 64) then
+			[physicalSP - 2] = -1;
+			ireturn;
+		endif;
+		fat_index = fat_index + 1;
+    endwhile;
+
+    bb = [FAT + fat_index*8 + 2];
+    load(1,bb);
+
+	page=25;
+	while([MEM_LIST + page] != 0) do
+		if(page == 64) then
+			[physicalSP - 2] = -1;
+			ireturn;
+		endif;
+		page = page + 1;
+	endwhile;
+	[MEM_LIST + page] = 1;
+
+	[newPTBR + 6] = page;
+	[newPTBR + 7] = "01";
+
+	// update page table of old process
+	page=0;
+    while(page < (PTLR-1)) do
+		db = [SCRATCHPAD + page];
+
+		[newPTBR + page*2] = db;
+		[newPTBR + page*2 + 1] = "00";
+
+		page = page + 1;
+    endwhile;
+
+	breakpoint;
+
+	[PCB + 1] = 100 + newPID;
+	[PCB + 2] = SP - 1;
+	[PCB + 3] = BP;
+	[PCB + 4] = [physicalSP];
+	[PCB + 5] = PTBR;
+	[PCB + 6] = PTLR;
+	[PCB + 7] = R0;
+	[PCB + 8] = R1;
+	[PCB + 9] = R2;
+	[PCB + 10] = R3;
+	[PCB + 11] = R4;
+	[PCB + 12] = R5;
+	[PCB + 13] = R6;
+	[PCB + 14] = R7;
+
+	breakpoint;
+
+	[physicalSP - 2] = 0; 
+
+	[newPCB + 1] = 2;
+    SP=3*512;
+	BP=3*512;
+	PTBR = newPTBR;
+	PTLR = 4;
+    physicalSP = ([newPTBR + 6]*512);
+    [physicalSP] = 0;
+
+	breakpoint;
+endif;
+
+// getpid system call
+if(sysCallNo == 11) then 
+    [physicalSP - 2] = PID;
+endif;
+
+// getppid system call
+if(sysCallNo == 12) then    
+    [physicalSP - 2] = [PCB + 31];
+endif;
+
+breakpoint;
+
+ireturn;

@@ -1,0 +1,89 @@
+alias childpcbindex S0;
+alias i S1;
+alias j S2;
+alias return S3;
+alias physicalsp S4;
+alias temp S5;
+alias childptbr S6;
+alias currentpcb S7;
+alias k S8;
+print("int 5 S");
+breakpoint;
+
+physicalsp = [PTBR + (SP / 512) * 2] * 512 + SP % 512;
+return = physicalsp - 2;
+currentpcb =  READY_LIST + ((PTBR - PAGE_TABLE) / 8) * 32 + 15; 
+
+breakpoint;
+childpcbindex = 0;
+while([READY_LIST + childpcbindex * 32 + 1] != 0 && childpcbindex < 32 ) do 
+	childpcbindex = childpcbindex + 1;
+	endwhile;
+
+	if(childpcbindex == 32) then
+		[return] = -1;
+		    ireturn;
+		    endif;
+
+		    breakpoint;
+		    [READY_LIST + childpcbindex * 32 ] = childpcbindex;
+
+		    i = 0;
+		    j = 0;
+		    childptbr = PAGE_TABLE + childpcbindex * 8;
+		    while(j < 64 && i != PTLR ) do 
+			    if( [MEM_LIST + j] == 0 ) then
+					temp = 0;
+						while(temp < 512) do
+								[j * 512 + temp] = [[PTBR + i * 2]*512 + temp];
+									    temp = temp + 1;
+										    endwhile;
+											    [MEM_LIST + j] = 1;
+												    [childptbr + i * 2] = j;//[MEM_LIST + j];
+													    [childptbr + i * 2 + 1] = [PTBR + i * 2 + 1]; // "01"
+														    i = i + 1;
+															endif;
+															    j = j+1;
+															    endwhile;
+
+															    breakpoint;
+															    if(i < PTLR) then
+																    [return] = -1;
+																	ireturn;
+																	endif;
+
+																	temp = READY_LIST + childpcbindex * 32;
+
+																	[temp + 5] = childptbr;
+																	[temp + 4] = [physicalsp];
+																	[temp + 3] = SP - 1;
+																	[temp + 2] = BP;
+																	[temp + 6] = 4;
+																	[temp + 7] = R0;
+																	[temp + 8] = R1;
+																	[temp + 9] = R2;
+																	[temp + 10] = R3;
+																	[temp + 11] = R4;
+																	[temp + 12] = R5;
+																	[temp + 13] = R6;
+																	[temp + 14] = R7;
+																	[temp + 1] = 1;
+																	//step 9
+																	i=0;
+																	breakpoint;
+																	temp = temp + 15;
+																	while(i < 8) do
+																		[temp + i * 2] = [currentpcb + i * 2];
+																		    [temp + i * 2 + 1] = [currentpcb + i * 2 + 1];
+																			j = FILE_TABLE + [temp + i * 2 + 1] * 2 + 1;
+																			    [j] = [j] + 1;
+																				i = i + 1;
+																				endwhile;
+																				print("T");
+																				breakpoint;
+
+																				[return] = childpcbindex;
+																				[([childptbr + ((SP-1) / 512) * 2] * 512 + (SP -1) % 512) - 1] = -2;
+																				breakpoint;
+																				print("int 5 e");
+																				ireturn;

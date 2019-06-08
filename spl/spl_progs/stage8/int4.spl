@@ -1,0 +1,76 @@
+alias physicalSP S0;
+physicalSP = ([PTBR + 2*(SP/512)]*512) + SP%512;
+
+alias sysCallNo S1;
+sysCallNo = [physicalSP - 1];
+
+alias wordToWrite S2;
+wordToWrite = [physicalSP - 3];
+
+alias fileDesc S3;
+fileDesc = [physicalSP - 4];
+
+alias PID S10;
+alias PCB S11;
+
+PID = (PTBR - 1024)/8;
+PCB = READY_LIST + PID*32;
+
+if(sysCallNo == 5) then
+    alias index S4;
+    alias LSEEK S5;
+    alias bb S6;
+    alias bb_index S7;
+    alias db_add S8;
+    alias db S9;
+
+    if(fileDesc < 0 || fileDesc > 7) then
+	[physicalSP - 2] = -1;
+	ireturn;
+    endif;
+
+    index = [PCB + 15 + fileDesc*2];
+    if(index == -1) then
+	[physicalSP - 2] = -1;
+	ireturn;
+    endif;
+
+    LSEEK = [PCB + 15 + fileDesc*2 + 1];
+
+    index = [FILE_TABLE + index*2];
+
+    bb = [FAT + index*8 + 2];
+    load(1,bb);
+
+    bb_index = LSEEK/512;
+    db = [SCRATCHPAD + bb_index];
+    if(db == -1) then
+		db=24;
+		while([DISK_LIST + db] != 0) do
+	    	if(db == 447) then
+				[physicalSP - 2] = -1;
+				ireturn;
+	    	endif;
+	    	db = db + 1;
+		endwhile;
+
+		[SCRATCHPAD + bb_index] = db;
+		[DISK_LIST + db] = 1;
+		[FAT + index*8 + 1] = [FAT + index*8 + 1] + 512;
+
+		store(1,bb);
+		store(5,19);
+		store(6,20);
+    endif;
+    
+    load(1,db);
+    [SCRATCHPAD + LSEEK%512] = wordToWrite;
+    LSEEK = LSEEK + 1;
+    [PCB + 15 + fileDesc*2 + 1] = LSEEK;
+
+    store(1,db);
+
+    [physicalSP - 2] = 0;
+endif;
+
+ireturn;

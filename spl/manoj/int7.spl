@@ -1,0 +1,81 @@
+alias currentPID S0;
+alias newPID S1;
+alias newPCB S2;
+alias count S3;
+alias physicalSP S4;
+alias currentPCB S5;
+alias i S6;
+alias j S7;
+alias ppoft S8;
+alias swoft S9;
+
+currentPID = (PTBR - 1024) / 8;
+
+currentPCB = READY_LIST + 32 * currentPID;
+//close all the instances of file;
+[currentPCB + 1] = 1;
+newPID = (currentPID + 1)%32;
+newPCB = READY_LIST + 32 * newPID;
+
+while([newPCB + 1] != 1) do 
+	newPID = (newPID + 1)%32;
+	newPCB = READY_LIST + 32 * newPID;
+endwhile;
+
+if(currentPID == newPID) then
+	halt;
+endif;
+
+i=15;
+while(i<31) do
+	ppoft = currentPCB + i;
+	swoft = [ppoft];
+	j = swoft + 1;
+	[j] = [j] - 1;
+	if([j] == 0) then
+		[swoft] = -1;
+	endif;
+	[ppoft] = -1;
+	[ppoft + 1] = -1;
+
+	i = i + 2;
+endwhile;
+
+[currentPCB + 1] = 0;
+i=0;
+while(i < 4) do 
+	j = PTBR + i * 2;
+	if(([j] != -1) && ([j] < 64)) then          //-2
+		[MEM_LIST + [j]] = [MEM_LIST + [j]] - 1;
+		[j] = -1;
+		[j+1] = "00";
+	endif;
+	if(([j] != -1) && ([j] > 447)) then          //-2
+		[DISK_LIST + [j]] = [DISK_LIST + [j]] - 1;
+		[j] = -1;
+		[j+1] = "00";
+	endif;
+	i = i + 1;
+endwhile;
+
+BP = [newPCB + 2];
+SP = [newPCB + 3];
+PTBR = [newPCB + 5];
+PTLR = [newPCB + 6];
+R0 = [newPCB + 7];
+R1 = [newPCB + 8];
+R2 = [newPCB + 9];
+R3 = [newPCB + 10]; 
+R4 = [newPCB + 11];
+R5 = [newPCB + 12];
+R6 = [newPCB + 13];
+R7 = [newPCB + 14];
+SP = SP + 1;
+
+physicalSP = [PTBR + 2 * (SP / 512)] * 512 + (SP % 512);
+[physicalSP] = [newPCB + 4];
+[newPCB + 1] = 2;
+
+ireturn;
+
+

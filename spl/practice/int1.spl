@@ -1,0 +1,122 @@
+alias physicalSP S0;
+alias sysCallNo S1;
+alias fileName S2;
+alias fat_index S3;
+alias bb S4;
+alias counter S5;
+
+physicalSP = ([PTBR + 6]*512) + SP%512;
+fileName = [physicalSP - 3];
+sysCallNo = [physicalSP - 1];
+
+if(sysCallNo == 1) then
+	fat_index = 0;
+	while(fat_index < 64) do
+		if([FAT + fat_index*2] == fileName) then
+			[physicalSP - 2] = 0;
+			ireturn;
+		endif;
+		fat_index = fat_index + 1;
+	endwhile;
+
+	fat_index=0;
+	while([FAT + fat_index*8] != -1) do
+		if(fat_index == 64) then
+			[physicalSP - 2] = -1;
+			print("fail:1011");
+			ireturn;
+		endif;
+		fat_index = fat_index + 1;
+	endwhile;
+
+	bb=24;
+	while([DISK_LIST + bb] != 0) do
+		if(bb > 447) then
+			[physicalSP - 2] = -1;
+			print("fail:1012");
+			ireturn;
+		endif;
+		bb = bb + 1;
+	endwhile;
+
+	load(1,bb);
+	counter = 0;
+	while(counter < 512) do
+		[SCRATCHPAD + counter] = -1;
+		counter = counter + 1;
+	endwhile;
+
+	breakpoint;
+
+	[DISK_LIST + bb] = 1;
+	[FAT + fat_index*8] = fileName;
+	[FAT + fat_index*8 + 1] = 0;
+	[FAT + fat_index*8 + 2] = bb;
+
+	store(1,bb);
+	store(5,19);
+	store(6,20);
+
+	[physicalSP - 2] = 0;
+endif;
+
+if(sysCallNo == 4) then
+	alias swoft_index S6;
+	alias word S7;
+	alias db S8;
+
+	fat_index=0;
+	while([FAT + fat_index*8] != fileName) do
+		if(fat_index == 64) then
+			[physicalSP - 2] = -1;
+			print("fail:1041");
+			ireturn;
+		endif;
+		fat_index = fat_index + 1;
+	endwhile;
+
+	swoft_index=0;
+	while(swoft_index < 64) do
+		if([FILE_TABLE + swoft_index*2] == fat_index) then
+			[physicalSP - 2] = -1;
+			print("fail:1042");
+			ireturn;
+		endif;
+		swoft_index = swoft_index + 1;
+	endwhile;
+
+	bb = [FAT + fat_index*8 + 2];
+	load(1,bb);
+	counter=0;
+	db = [SCRATCHPAD + counter];
+
+	while(db != -1) do
+		[SCRATCHPAD + counter] = -1;
+		store(1,bb);
+		load(1,db);
+
+		word=0;
+		while(word < 512) do
+			[SCRATCHPAD + word] = "";
+			word = word + 1;
+		endwhile;
+		store(1,db);
+		[DISK_LIST + db] = 0;
+
+		load(1,bb);
+		counter = counter + 1;
+		db = [SCRATCHPAD + counter];
+	endwhile;
+
+	[DISK_LIST + bb] = 0;
+	[FAT + fat_index*8] = -1;
+	[FAT + fat_index*8 + 1] = 0;
+	[FAT + fat_index*8 + 2] = -1;
+	
+	store(5,19);
+	store(6,20);
+
+	[physicalSP - 2] = 0;
+endif;
+
+ireturn;

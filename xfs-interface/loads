@@ -1,0 +1,6 @@
+load --int=5 $SPL/stage10/int5.xsm
+load --int=6 $SPL/stage10/int6.xsm
+load --int=7 $SPL/stage10/int7.xsm
+load --exhandler $SPL/stage10/exhandler.xsm
+load --os $SPL/stage10/os_startup.xsm
+load --int=timer $SPL/stage10/timer.xsm

@@ -1,0 +1,107 @@
+alias physicalSP S0;
+physicalSP = ([PTBR + 2*(SP/512)]*512) + SP%512;
+
+alias filename S1;
+filename = [physicalSP - 3];
+
+alias sysCallNo S2;
+sysCallNo = [physicalSP - 1];
+
+alias PID S3;
+PID = (PTBR - 1024)/8;
+
+alias PCB S4;
+PCB = READY_LIST + PID*32;
+
+// exec system call
+if(sysCallNo == 9) then
+    alias fat_index S3;
+    alias mem_index S4;
+    alias bb S5;
+    alias db S6;
+    alias page S7;
+    alias code_block S8;
+    alias counter S9;
+    alias sw_index S10;
+    alias fileCount S11;
+    alias currentPCB S12;
+    alias currentPID S13;
+    alias aux S14;
+
+    currentPID = (PTBR - 1024)/8;
+    currentPCB = [READY_LIST + currentPID*32];
+
+	// get basic block of filename to execute
+    fat_index = 0;
+    while([FAT + fat_index*8] != filename) do
+	if(fat_index == 64) then
+	    [physicalSP - 2] = -1;
+	    ireturn;
+	endif;
+	fat_index = fat_index + 1;
+    endwhile;
+
+    bb = [FAT + fat_index*8 + 2];
+    load(1,bb);
+
+	// update page table of old process
+    mem_index = 24;
+    page = 0;
+    while(page < (PTLR-1)) do
+		aux = [PTBR + page*2 + 1];
+		db = [SCRATCHPAD + page];
+		code_block = [PTBR + page*2];
+		if(aux%10 == 1) then
+	    	[MEM_LIST + code_block] = [MEM_LIST + code_block] - 1;
+		endif;
+	    if(code_block > 447) then
+			[DISK_LIST + code_block] = [DISK_LIST + code_block] - 1;
+	    endif;
+
+		if(db != -1) then
+	    	[PTBR + page*2] = db;
+		else
+		    [PTBR + page*2] = -1;
+		endif;
+		[PTBR + page*2 + 1] = "00";
+
+		page = page + 1;
+    endwhile;
+
+	// close open files of old process
+    counter = 0;
+    while(counter < 8) do
+	sw_index = [currentPCB + 15 + counter*2];
+	if(sw_index != -1) then
+	    fileCount = [FILE_TABLE + sw_index*2 + 1];
+	    fileCount = fileCount - 1;
+	    [FILE_TABLE + sw_index*2 + 1] = fileCount;
+	    if (fileCount == 0) then
+		[FILE_TABLE + sw_index*2] = -1;
+	    endif;
+
+	    [currentPCB + 15 + counter*2] = -1;
+	    [currentPCB + 15 + counter*2 + 1] = -1;
+	endif;
+	
+	counter = counter + 1;
+    endwhile;
+
+    SP=3*512;
+    physicalSP = ([PTBR + 6]*512) + SP%512;
+    [physicalSP] = 0;
+endif;
+
+// getpid system call
+if(sysCallNo == 11) then 
+    [physicalSP - 2] = PID;
+endif;
+
+// getppid system call
+if(sysCallNo == 12) then    
+    [physicalSP - 2] = [PCB + 31];
+endif;
+
+breakpoint;
+
+ireturn;

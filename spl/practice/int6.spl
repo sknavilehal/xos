@@ -1,0 +1,99 @@
+alias physicalSP S0;
+alias newPID S1;
+alias newPCB S2;
+alias currentPID S3;
+alias currentPCB S4;
+alias sysCallNo S5;
+alias counter S6;
+alias page S7;
+alias aux S8;
+alias swoft_index S9;
+
+currentPID = (PTBR - PAGE_TABLE)/8;
+currentPCB = READY_LIST + 32*currentPID;
+physicalSP = ([PTBR + 6]*512) + SP%512;
+
+newPID = (newPID + 1)%32;
+newPCB = READY_LIST + 32*newPID;
+
+sysCallNo = [physicalSP - 1];
+S14 = [physicalSP - 3];
+
+if(sysCallNo == 9) then
+	alias fileCount S10;
+	alias db S11;
+	alias bb S12;
+	alias fat_index S13;
+	alias fileName S14;
+
+	fat_index=0;
+	while([FAT + fat_index*8] != fileName) do
+		if(fat_index == 64) then
+			[physicalSP - 2] = -1;
+			ireturn;
+		endif;
+		fat_index = fat_index + 1;
+	endwhile;
+
+	bb = [FAT + fat_index*8 + 2];
+	load(1,bb);
+
+	store(2,511);
+
+	counter=0;
+	while(counter < (PTLR - 1)) do
+		page = [PTBR + counter*2];
+		aux = [PTBR + counter*2 + 1];
+		db = [SCRATCHPAD + counter];
+
+		if(page != -1 && db != -1) then
+			load(page, db);
+		endif;
+		if(page == -1 && db != -1) then
+			page=25;
+			while([MEM_LIST + page] != 0) do
+				if(page == 64) then
+					[physicalSP - 2] = -1;
+					load(2,511);
+					ireturn;
+				endif;
+				page = page + 1;
+			endwhile;
+			[MEM_LIST + page] = 1;
+			load(page,db);
+			[PTBR + counter*2] = page;
+			[PTBR + counter*2 + 1] = "01";
+		endif;
+		if(page != -1 && db == -1) then
+			[MEM_LIST + page] = [MEM_LIST + page] - 1;
+			[PTBR + counter*2] = -1;
+			[PTBR + counter*2 + 1] = "00";
+		endif;
+		counter = counter + 1;
+	endwhile;
+	breakpoint;
+
+	counter = 0;
+	while(counter < 8) do
+		swoft_index = [currentPCB + 15 + counter*2];
+		if(swoft_index != -1) then
+			fileCount = [FILE_TABLE + swoft_index*2 + 1];
+			fileCount = fileCount - 1;
+			if(fileCount == 0) then
+				[FILE_TABLE + swoft_index*2] = -1;
+			endif;
+			
+			[currentPCB + 15 + counter*2] = -1;
+			[currentPCB + 15 + counter*2 + 1] = -1;
+		endif;
+		
+		counter = counter + 1;
+	endwhile;
+
+	SP = 3*512;
+	physicalSP = [PTBR + 6]*512;
+	[physicalSP] = 0;
+	
+endif;
+
+ireturn;

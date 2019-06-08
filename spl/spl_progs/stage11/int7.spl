@@ -1,0 +1,154 @@
+alias physicalSP S0;
+physicalSP = ([PTBR + 2*(SP/512)]*512) + SP%512; 
+
+alias sysCallNo S1;
+sysCallNo = [physicalSP - 1];
+
+alias currentPID S2;
+alias newPID S3;
+alias newPCB S4;
+alias currentPCB S5;
+alias newphysicalSP S6;
+alias waitingPID S12;
+alias counter S7;
+
+currentPID = (PTBR-1024)/8;
+currentPCB = READY_LIST + currentPID*32;
+newPID = (currentPID + 1)%32;
+
+// system call exit and signal. set state of processes waiting for current process to ready
+if(sysCallNo == 10 || sysCallNo == 14) then
+    waitingPID = 100 + currentPID;
+
+    counter = 0;
+    while(counter < 32) do
+		if([READY_LIST + counter*2 + 1] == waitingPID) then
+		    [READY_LIST + counter*2 + 1] = 1;
+		endif;
+
+	counter = counter + 1;
+    endwhile;
+
+	breakpoint;
+
+    [physicalSP - 2] = 0;
+endif;
+
+//system call exit and wait. get PID of next process to execute
+if (sysCallNo == 10 || sysCallNo == 13) then
+    [currentPCB + 1] = 1;
+
+    while([READY_LIST + newPID*32 + 1] != 1) do
+		newPID = (newPID + 1)%32;
+    endwhile;
+    
+    if(currentPID == newPID) then
+		halt;
+    endif;
+endif;
+
+// system call exit
+if(sysCallNo == 10) then
+    alias page S8;
+    alias sw_index S9;
+    alias fileCount S10;
+    alias aux S11;
+
+    [currentPCB + 1] = 0;
+
+	// close opened files
+    counter = 0;
+    while(counter < 8) do
+		sw_index = [currentPCB + 15 + counter*2];
+		if(sw_index != -1) then
+	    	fileCount = [FILE_TABLE + sw_index*2 + 1];
+	    	fileCount = fileCount - 1;
+	    	[FILE_TABLE + sw_index*2 + 1] = fileCount;
+	    	if (fileCount == 0) then
+				[FILE_TABLE + sw_index*2] = -1;
+	    	endif;
+
+	   		[currentPCB + 15 + counter*2] = -1;
+			[currentPCB + 15 + counter*2 + 1] = -1;
+		endif;
+    
+		counter = counter + 1;
+    endwhile;
+    
+	// free up memory
+    counter = 0;
+    while(counter < PTLR) do
+		page = [PTBR + counter*2];
+		aux = [PTBR + counter*2 + 1];
+		if(aux%10 == 1) then
+	    	[MEM_LIST + page] = [MEM_LIST + page] - 1;
+		endif;
+
+		if(page > 447) then
+	    	[DISK_LIST + page] = [DISK_LIST + page] - 1;
+		endif;
+
+		[PTBR + counter*2] = -1;
+		[PTBR + counter*2 + 1] = "00";
+
+		counter = counter + 1;
+    endwhile;
+endif;
+
+//system call wait. 
+if(sysCallNo == 13) then
+    alias waitingPID S7;
+    alias waitingPCB S8;
+
+    waitingPID = [physicalSP - 3];
+    waitingPCB = READY_LIST + waitingPID*32;
+
+    if([waitingPCB + 1] == 0 || [waitingPCB + 1] == 2) then
+		[physicalSP - 2] = -1;
+		ireturn;
+    endif;
+
+    [currentPCB + 1] = 100 + waitingPID;
+    [physicalSP - 2] = 0;
+
+    [currentPCB + 2] = BP;
+    [currentPCB + 3] = SP - 1;
+    [currentPCB + 4] = [physicalSP];
+    [currentPCB + 5] = PTBR;
+    [currentPCB + 6] = PTLR;
+    [currentPCB + 7] = R0;
+    [currentPCB + 8] = R1;
+    [currentPCB + 9] = R2;
+    [currentPCB + 10] = R3;
+    [currentPCB + 11] = R4;
+    [currentPCB + 12] = R5;
+    [currentPCB + 13] = R6;
+    [currentPCB + 14] = R7;
+endif;
+
+//system call exit and wait. context switch to new process
+if(sysCallNo == 10 || sysCallNo == 13) then
+    newPCB = READY_LIST + newPID*32;
+    [newPCB] = newPID;
+    [newPCB + 1] = 2;
+    BP=[newPCB + 2];
+    SP=[newPCB + 3];
+    PTBR=[newPCB + 5];
+    PTLR=[newPCB + 6];
+    R0=[newPCB + 7];
+    R1=[newPCB + 8];
+    R2=[newPCB + 9];
+    R3=[newPCB + 10];
+    R4=[newPCB + 11];
+    R5=[newPCB + 12];
+    R6=[newPCB + 13];
+    R7=[newPCB + 14];
+
+    SP = SP + 1;
+    newphysicalSP = ([PTBR + 2*(SP/512)]*512) + SP%512;
+    [newphysicalSP] = [newPCB + 4];
+endif;
+
+breakpoint;
+
+ireturn;
